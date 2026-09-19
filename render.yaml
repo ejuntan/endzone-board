@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: endzone-td-board
+    runtime: static
+    buildCommand: "./build_site.sh"
+    staticPublishPath: ./public
+    autoDeploy: true

@@ -1,0 +1,351 @@
+<title>Anytime TD Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  :root{
+    --bg:#eef1f3; --panel:#ffffff; --panel2:#f5f8f9;
+    --ink:#10191f; --muted:#5c6b76; --faint:#8695a0;
+    --line:#dde3e7; --line2:#e9edf0;
+    --accent:#e8541f; --accent-ink:#ffffff; --accent-soft:rgba(232,84,31,.10);
+    --field:#1f7a4d;
+    --t-elite:#0f8a52; --t-elite-bg:rgba(15,138,82,.12);
+    --t-strong:#e8541f; --t-strong-bg:rgba(232,84,31,.11);
+    --t-live:#a9761f; --t-live-bg:rgba(169,118,31,.13);
+    --t-long:#5c6b76; --t-long-bg:rgba(92,107,118,.10);
+    --shadow:0 1px 2px rgba(16,25,31,.05),0 8px 24px rgba(16,25,31,.06);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0d1317; --panel:#151e25; --panel2:#1b2831;
+    --ink:#e9eff3; --muted:#8496a2; --faint:#66798a;
+    --line:#26333d; --line2:#202c35;
+    --accent:#ff6a3d; --accent-ink:#160a05; --accent-soft:rgba(255,106,61,.14);
+    --field:#3fa972;
+    --t-elite:#35d08a; --t-elite-bg:rgba(53,208,138,.14);
+    --t-strong:#ff6a3d; --t-strong-bg:rgba(255,106,61,.15);
+    --t-live:#e0a83c; --t-live-bg:rgba(224,168,60,.15);
+    --t-long:#8496a2; --t-long-bg:rgba(132,150,162,.13);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 30px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0d1317; --panel:#151e25; --panel2:#1b2831;
+    --ink:#e9eff3; --muted:#8496a2; --faint:#66798a;
+    --line:#26333d; --line2:#202c35;
+    --accent:#ff6a3d; --accent-ink:#160a05; --accent-soft:rgba(255,106,61,.14);
+    --field:#3fa972;
+    --t-elite:#35d08a; --t-elite-bg:rgba(53,208,138,.14);
+    --t-strong:#ff6a3d; --t-strong-bg:rgba(255,106,61,.15);
+    --t-live:#e0a83c; --t-live-bg:rgba(224,168,60,.15);
+    --t-long:#8496a2; --t-long-bg:rgba(132,150,162,.13);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:22px 20px 64px}
+  header.board{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .mark{width:42px;height:42px;border-radius:8px;background:var(--accent);display:grid;place-items:center;flex:0 0 auto;box-shadow:var(--shadow)}
+  .mark svg{width:26px;height:26px;display:block}
+  .titles h1{font-family:"Oswald",sans-serif;font-weight:700;font-size:clamp(26px,4.4vw,38px);line-height:.95;margin:0;letter-spacing:.4px;text-transform:uppercase}
+  .titles h1 .z{color:var(--accent)}
+  .titles p{margin:3px 0 0;color:var(--muted);font-size:13px;max-width:52ch}
+  .headright{display:flex;align-items:center;gap:10px}
+  .weekpill{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;letter-spacing:.5px;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
+  .themebtn{background:var(--panel);border:1px solid var(--line);color:var(--muted);width:38px;height:38px;border-radius:9px;cursor:pointer;display:grid;place-items:center;transition:color .15s,border-color .15s}
+  .themebtn:hover{color:var(--ink);border-color:var(--faint)}
+  .themebtn svg{width:18px;height:18px}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;box-shadow:var(--shadow)}
+  .tile .k{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px}
+  .tile .v{font-family:"Oswald",sans-serif;font-weight:600;font-size:30px;line-height:1.1;margin-top:2px;font-variant-numeric:tabular-nums}
+  .tile .v small{font-size:14px;color:var(--muted);font-weight:500;margin-left:4px}
+  .tile.elite .v{color:var(--t-elite)} .tile.accent .v{color:var(--accent)}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .search{position:relative;flex:1 1 200px;min-width:170px}
+  .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--faint)}
+  .search input{width:100%;padding:9px 12px 9px 33px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:inherit;font-size:13.5px}
+  .search input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+  .segs{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+  .segs button{border:0;background:transparent;color:var(--muted);font-family:inherit;font-size:12.5px;font-weight:600;padding:6px 11px;border-radius:6px;cursor:pointer;letter-spacing:.3px}
+  .segs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+  .field-ctl{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 12px}
+  .field-ctl label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+  .field-ctl input[type=range]{width:96px;accent-color:var(--accent)}
+  .field-ctl .rv{font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:600;color:var(--ink);min-width:34px;text-align:right}
+  .tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:600px}
+  thead th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;text-align:right;padding:11px 14px;background:var(--panel2);border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0}
+  thead th.l{text-align:left}
+  thead th.sortable{cursor:pointer;user-select:none}
+  thead th.sortable:hover{color:var(--ink)}
+  thead th .arr{opacity:.5;font-size:9px}
+  thead th[aria-sort] .arr{opacity:1;color:var(--accent)}
+  tbody td{padding:11px 14px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line2);font-size:13.5px}
+  tbody tr.row{cursor:pointer;transition:background .12s}
+  tbody tr.row:hover{background:var(--panel2)}
+  tbody tr:last-child td{border-bottom:0}
+  .player{text-align:left;display:flex;align-items:center;gap:11px}
+  .rk{font-family:"Oswald",sans-serif;font-weight:600;color:var(--faint);font-size:14px;width:20px;text-align:right;flex:0 0 auto;font-variant-numeric:tabular-nums}
+  .pname{font-weight:600;font-size:14px;line-height:1.15}
+  .pmeta{font-size:11.5px;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+  .posbadge{font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+  .prob{font-family:"Oswald",sans-serif;font-weight:600;font-size:20px}
+  .bar{height:6px;border-radius:3px;background:var(--line);margin-top:5px;overflow:hidden;width:88px;margin-left:auto}
+  .bar i{display:block;height:100%;border-radius:3px}
+  .mono{font-family:"IBM Plex Mono",monospace;font-weight:500}
+  .tier{font-family:"Oswald",sans-serif;font-weight:600;font-size:12px;letter-spacing:.5px;padding:3px 10px;border-radius:6px;text-transform:uppercase;display:inline-block}
+  .tier.elite{background:var(--t-elite-bg);color:var(--t-elite)}
+  .tier.strong{background:var(--t-strong-bg);color:var(--t-strong)}
+  .tier.live{background:var(--t-live-bg);color:var(--t-live)}
+  .tier.long{background:var(--t-long-bg);color:var(--t-long)}
+  .chev{color:var(--faint);transition:transform .18s;display:inline-block}
+  tr.open .chev{transform:rotate(90deg);color:var(--accent)}
+  tr.detail td{padding:0;border-bottom:1px solid var(--line2)}
+  .panel-in{padding:16px 18px 18px 45px;background:var(--panel2);display:grid;grid-template-columns:1.1fr 1fr;gap:22px}
+  .brk h4{margin:0 0 10px;font-family:"Oswald",sans-serif;font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .xcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .xcard .lab{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .xcard .num{font-family:"Oswald",sans-serif;font-size:22px;font-weight:600;margin-top:2px}
+  .xcard .sub{font-size:11px;color:var(--faint);font-family:"IBM Plex Mono",monospace;margin-top:3px}
+  .oppgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;margin-top:4px}
+  .oppgrid .row2{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px dashed var(--line);gap:12px}
+  .oppgrid .row2 span:first-child{color:var(--muted)}
+  .oppgrid .row2 b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+  .formula{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;line-height:1.7;margin-top:2px}
+  .formula b{color:var(--accent)}
+  .empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+  details.method{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:2px 18px}
+  details.method summary{cursor:pointer;padding:13px 0;font-family:"Oswald",sans-serif;font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink);list-style:none;display:flex;align-items:center;gap:8px}
+  details.method summary::-webkit-details-marker{display:none}
+  details.method summary .chev{transition:transform .18s}
+  details.method[open] summary .chev{transform:rotate(90deg)}
+  .method-body{padding:2px 0 18px;color:var(--muted);font-size:13px;line-height:1.65;max-width:78ch}
+  .method-body p{margin:0 0 10px}
+  .method-body code{font-family:"IBM Plex Mono",monospace;background:var(--panel2);padding:1px 5px;border-radius:4px;color:var(--ink);font-size:12px}
+  .method-body strong{color:var(--ink)}
+  .mtable{width:100%;border-collapse:collapse;margin:6px 0 14px;font-size:12.5px}
+  .mtable th,.mtable td{text-align:right;padding:6px 10px;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums}
+  .mtable th:first-child,.mtable td:first-child{text-align:left}
+  .mtable thead th{color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-size:10.5px}
+  .mtable tr.best td{color:var(--t-elite);font-weight:600}
+  .mtable .mono{font-family:"IBM Plex Mono",monospace}
+  .disc{margin-top:8px;font-size:12px;color:var(--faint);display:flex;gap:8px;align-items:flex-start}
+  .disc svg{width:15px;height:15px;flex:0 0 auto;margin-top:1px}
+  @media (max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}.panel-in{grid-template-columns:1fr}.headright{order:-1}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  .badge{font-family:"IBM Plex Mono",monospace;font-size:9.5px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:6px;letter-spacing:.3px;vertical-align:middle}
+  .badge.q{background:var(--t-live-bg);color:var(--t-live)}
+  .badge.r{background:var(--accent-soft);color:var(--accent)}
+  .note{margin:-6px 0 14px;font-size:12px;color:var(--faint);font-family:"IBM Plex Mono",monospace}
+</style>
+
+<div class="wrap">
+  <header class="board">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M3 8.5C3 6.6 4.6 5 6.5 5h11C19.4 5 21 6.6 21 8.5v7c0 1.9-1.6 3.5-3.5 3.5h-11A3.5 3.5 0 0 1 3 15.5v-7Z" fill="#160a05" opacity=".18"/><path d="M12 6v12M9 8.5l6 7M15 8.5l-6 7" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+      <div class="titles">
+        <h1>End<span class="z">Zone</span> Board</h1>
+        <p>Each player's chance of scoring a touchdown in the <strong>upcoming week</strong> &mdash; a calibrated model built on red-zone opportunity and snap share, backtested across three seasons.</p>
+      </div>
+    </div>
+    <div class="headright">
+      <span class="weekpill" id="weekpill">2024 · Wk 15</span>
+      <button class="themebtn" id="themebtn" title="Toggle theme" aria-label="Toggle theme"></button>
+    </div>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><div class="k"><span class="dot" style="background:var(--accent)"></span>Players projected</div><div class="v" id="t-count">0</div></div>
+    <div class="tile accent"><div class="k"><span class="dot" style="background:var(--accent)"></span>Top scorer</div><div class="v" id="t-top" style="font-size:19px">—</div></div>
+    <div class="tile elite"><div class="k"><span class="dot" style="background:var(--t-elite)"></span>Elite (45%+)</div><div class="v" id="t-elite">0</div></div>
+    <div class="tile"><div class="k"><span class="dot" style="background:var(--field)"></span>Elite hit rate</div><div class="v" id="t-ll">—<small>backtested</small></div></div>
+  </div>
+
+  <div class="controls">
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m20 20-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="q" type="search" placeholder="Search player or team..." autocomplete="off">
+    </div>
+    <div class="segs" id="posseg" role="group" aria-label="Position filter">
+      <button data-pos="ALL" aria-pressed="true">All</button>
+      <button data-pos="RB" aria-pressed="false">RB</button>
+      <button data-pos="WR" aria-pressed="false">WR</button>
+      <button data-pos="TE" aria-pressed="false">TE</button>
+      <button data-pos="QB" aria-pressed="false">QB</button>
+    </div>
+    <div class="field-ctl">
+      <label for="chmin">Min chance</label>
+      <input id="chmin" type="range" min="0" max="50" step="5" value="0">
+      <span class="rv" id="chminv">0%</span>
+    </div>
+  </div>
+
+  <div class="note" id="note"></div>
+  <div class="tablewrap">
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th class="l sortable" data-sort="chance">Player <span class="arr">&#9662;</span></th>
+          <th class="sortable" data-sort="cpg">Car/g <span class="arr">&#9662;</span></th>
+          <th class="sortable" data-sort="tpg">Tgt/g <span class="arr">&#9662;</span></th>
+          <th class="sortable" data-sort="xtd">Exp. TDs <span class="arr">&#9662;</span></th>
+          <th class="sortable" data-sort="chance" aria-sort="descending">TD chance <span class="arr">&#9662;</span></th>
+          <th class="l">Tier</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" hidden>No players match those filters.</div>
+  </div>
+
+  <details class="method">
+    <summary><span class="chev">&#9656;</span> Model, data &amp; backtest</summary>
+    <div class="method-body">
+      <p>These are projections for the <strong>upcoming slate</strong> &mdash; 2026 Week 2, 15 games kicking off 2026-09-21. Each player's numbers come from their usage through the season so far, blended with last year, using only information available before kickoff.</p>
+      <p><strong>1 &middot; Scoring rates, fit from data.</strong> Instead of guessed coefficients, each opportunity is weighted by an empirical touchdown rate estimated from 2021&ndash;22 play-by-play, split by exact field position:</p>
+      <table class="mtable"><thead><tr><th>Rushing, by yard line</th><th>TD rate</th><th>Receiving target</th><th>TD rate</th></tr></thead><tbody>
+        <tr><td>Goal line (&le;2)</td><td class="mono" id="rr0"></td><td>End-zone, &le;5</td><td class="mono" id="re0"></td></tr>
+        <tr><td>Inside-5 (3&ndash;5)</td><td class="mono" id="rr1"></td><td>End-zone, 6&ndash;10</td><td class="mono" id="re1"></td></tr>
+        <tr><td>Inside-10 (6&ndash;10)</td><td class="mono" id="rr2"></td><td>Red-zone, short of EZ</td><td class="mono" id="re2"></td></tr>
+        <tr><td>Rest of RZ (11&ndash;20)</td><td class="mono" id="rr3"></td><td>Mid-field, short of EZ</td><td class="mono" id="re3"></td></tr>
+        <tr><td>Midfield (21&ndash;50)</td><td class="mono" id="rr4"></td><td>Deep, short of EZ</td><td class="mono" id="re4"></td></tr>
+      </tbody></table>
+      <p>A goal-line carry scores about <strong>half</strong> the time; a carry from the 11&ndash;20 barely 1-in-20. That granularity is the core fix &mdash; a single flat red-zone rate blurs a 25&times; difference.</p>
+      <p><strong>2 &middot; Opportunity &amp; context features.</strong> The analytic estimate is one input among many. The model also sees each player's <strong>red-zone and goal-line carry share</strong>, red-zone target share, end-zone usage, snap share, carry/target volume, recent scoring rate, position, and the game's <strong>Vegas implied team total</strong> &mdash; all trailing, pre-kickoff numbers.</p>
+      <p><strong>3 &middot; Learned, calibrated probability.</strong> Those features feed a gradient-boosted classifier, isotonic-calibrated so the output probabilities match observed scoring rates. It is trained only on seasons before each test year, and <strong>players ruled Out or Doubtful are removed</strong> with their red-zone workload reallocated to available teammates. Tiers group the result: Elite &ge; 45%, Strong &ge; 33%, Live &ge; 22%, Longshot below.</p>
+      <p><strong>4 &middot; Out-of-sample backtest (multi-season, walk-forward).</strong> Each test season is scored by a model fit <em>only on seasons before it</em> (2022&larr;’21, 2023&larr;’21-22, 2024&larr;’21-23, 2025&larr;’21-24), predictions made week-by-week on prior data only. Held-out totals: <span id="neval"></span> active skill-player games across four seasons, base rate <span id="brate"></span>.</p><table class="mtable" id="sstable"><thead><tr><th>Test season</th><th>n</th><th>base</th><th>Brier</th><th>Log loss</th><th>AUC</th></tr></thead><tbody></tbody></table><p>Pooled model comparison (lower Brier / log loss better; higher AUC better):</p>
+      <table class="mtable" id="bttable"><thead><tr><th>Model</th><th>Brier</th><th>Log loss</th><th>AUC</th></tr></thead><tbody></tbody></table>
+      <p>Adding red-zone carry share and Vegas totals beats the plain opportunity model, which in turn crushes the naive &ldquo;count past touchdowns&rdquo; baseline &mdash; across four held-out seasons (21440 games), log loss <strong>0.475 vs 0.599</strong>, AUC <strong>0.69 vs 0.66</strong>. It ranks a scorer above a non-scorer <strong>69%</strong> of the time, and its probabilities land within about <strong>1.3</strong> points of the real rate (mean calibration error). Hit rate by tier &mdash; what actually happened to players the model sorted into each bucket:</p><table class="mtable" id="tiertable"><thead><tr><th>Model tier</th><th>players</th><th>model avg</th><th>actually scored</th></tr></thead><tbody></tbody></table>
+      <div class="disc">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 3h.01M10.3 4.3 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Still missing for a production model: opponent-defense adjustment, live injury/inactive status, and game-script effects. Data: nflverse play-by-play 2021&ndash;24. For analysis, not betting advice.</span>
+      </div>
+    </div>
+  </details>
+</div>
+
+<script id="board-data" type="application/json">__DATA__</script>
+<script>
+const BUNDLE=JSON.parse(document.getElementById('board-data').textContent);
+const META=BUNDLE.meta, PLAYERS=BUNDLE.players;
+
+const _today=new Date().toISOString().slice(0,10);
+document.getElementById('note').textContent='Updated '+_today+' \u00b7 '+META.games+' games \u00b7 kickoff '+META.kickoff+' \u00b7 '+(META.out_count||0)+' ruled-out players excluded';
+document.getElementById('weekpill').innerHTML=META.season+' \u00b7 Week '+META.week+(META.upcoming?' \u00b7 <span style="color:var(--accent)">Upcoming</span>':'');
+
+function tierOf(pr){ if(pr>=0.45)return{k:'elite',t:'Elite'}; if(pr>=0.33)return{k:'strong',t:'Strong'};
+  if(pr>=0.22)return{k:'live',t:'Live'}; return{k:'long',t:'Longshot'}; }
+function tierColor(pr){const c=tierOf(pr).k;
+  return c==='elite'?'var(--t-elite)':c==='strong'?'var(--t-strong)':c==='live'?'var(--t-live)':'var(--t-long)';}
+
+const state={pos:'ALL',q:'',sort:'chance',dir:-1,chmin:0,open:new Set()};
+const tbody=document.getElementById('tbody'), emptyEl=document.getElementById('empty');
+
+function view(){
+  let list=PLAYERS.filter(r=>{
+    if(state.pos!=='ALL'&&r.pos!==state.pos)return false;
+    if(r.chance*100<state.chmin)return false;
+    if(state.q){const s=(r.name+' '+r.team+' '+r.opp).toLowerCase(); if(!s.includes(state.q))return false;}
+    return true;});
+  list.sort((a,b)=>(a[state.sort]-b[state.sort])*state.dir);
+  return list;
+}
+function render(){
+  const list=view(); tbody.innerHTML=''; emptyEl.hidden=list.length>0;
+  list.forEach((r,i)=>{
+    const tier=tierOf(r.chance);
+    const tr=document.createElement('tr'); tr.className='row'+(state.open.has(r.name)?' open':'');
+    tr.innerHTML=`
+      <td class="player"><span class="chev">&#9656;</span><span class="rk">${i+1}</span>
+        <span><div class="pname">${r.name}${r.status==='Questionable'?' <span class="badge q">Q</span>':''}${r.thin?' <span class="badge r">1st-yr</span>':''}</div>
+        <div class="pmeta">${r.team} vs ${r.opp} · <span class="posbadge">${r.pos}</span></div></span></td>
+      <td class="mono">${r.cpg.toFixed(1)}</td>
+      <td class="mono">${r.tpg.toFixed(1)}</td>
+      <td class="mono">${r.xtd.toFixed(2)}</td>
+      <td><span class="prob" style="color:${tierColor(r.chance)}">${(r.chance*100).toFixed(0)}%</span>
+        <div class="bar"><i style="width:${Math.min(100,r.chance*100).toFixed(0)}%;background:${tierColor(r.chance)}"></i></div></td>
+      <td class="l"><span class="tier ${tier.k}">${tier.t}</span></td>`;
+    tbody.appendChild(tr);
+    if(state.open.has(r.name)){
+      const d=document.createElement('tr'); d.className='detail';
+      d.innerHTML=`<td colspan="6"><div class="panel-in">
+        <div class="brk"><h4>Expected-TD breakdown</h4>
+          <div class="split">
+            <div class="xcard"><div class="lab">Rushing TDs</div><div class="num">${r.xrush.toFixed(2)}</div><div class="sub">${r.cpg.toFixed(1)} carries/g</div></div>
+            <div class="xcard"><div class="lab">Receiving TDs</div><div class="num">${r.xrec.toFixed(2)}</div><div class="sub">${r.tpg.toFixed(1)} targets/g</div></div>
+          </div>
+          <div class="formula">Analytic expected TDs = <b>${r.xtd.toFixed(3)}</b> (rush+rec)<br>
+            Model chance (learned + calibrated) = <b>${(r.chance*100).toFixed(1)}%</b><br>
+            Tier = <b>${tier.t}</b></div></div>
+        <div class="brk"><h4>Opportunity profile</h4>
+          <div class="oppgrid">
+            <div class="row2"><span>Matchup</span><b>${r.team} vs ${r.opp}</b></div>
+            <div class="row2"><span>Position</span><b>${r.pos}</b></div>
+            <div class="row2"><span>Carries/g</span><b>${r.cpg.toFixed(1)}</b></div>
+            <div class="row2"><span>Targets/g</span><b>${r.tpg.toFixed(1)}</b></div>
+            <div class="row2"><span>Vegas implied total</span><b>${(r.implied||0).toFixed(1)}</b></div>
+            <div class="row2"><span>Snap share</span><b>${(r.snap||0).toFixed(0)}%</b></div>
+            <div class="row2"><span>RZ carry share</span><b>${Math.round((r.rzcsh||0)*100)}%</b></div>
+            <div class="row2"><span>Goal-line carry share</span><b>${Math.round((r.glcsh||0)*100)}%</b></div>
+            <div class="row2"><span>RZ target share</span><b>${Math.round((r.rztsh||0)*100)}%</b></div>
+            <div class="row2"><span>Injury status</span><b>${r.status||'—'}</b></div>
+            <div class="row2"><span>Rush / rec split</span><b>${Math.round(100*r.xrush/Math.max(1e-6,r.xtd))}% / ${Math.round(100*r.xrec/Math.max(1e-6,r.xtd))}%</b></div>
+          </div></div></div></td>`;
+      tbody.appendChild(d);
+    }
+  });
+  summary();
+}
+function summary(){
+  document.getElementById('t-count').textContent=PLAYERS.length;
+  const top=[...PLAYERS].sort((a,b)=>b.chance-a.chance)[0];
+  document.getElementById('t-top').innerHTML=top.name+' <small>'+(top.chance*100).toFixed(0)+'%</small>';
+  document.getElementById('t-elite').textContent=PLAYERS.filter(r=>r.chance>=0.45).length;
+  {const _e=META.bt.tiers.find(t=>t[0].indexOf('Elite')===0);document.getElementById('t-ll').innerHTML=(_e?Math.round(_e[2]*100):0)+'%<small>backtested</small>';}
+}
+// methodology fills
+const rr=META.rush_rates, re=META.rec_rates;
+const pct=x=>(x*100).toFixed(1)+'%';
+[['rr0',rr['0']],['rr1',rr['1']],['rr2',rr['2']],['rr3',rr['3']],['rr4',rr['4']]].forEach(([id,v])=>document.getElementById(id).textContent=pct(v));
+[['re0',re['0_1']],['re1',re['1_1']],['re2',re['2_0']],['re3',re['3_0']],['re4',re['4_0']]].forEach(([id,v])=>document.getElementById(id).textContent=pct(v));
+document.getElementById('neval').textContent=META.bt.pooled.n.toLocaleString();
+document.getElementById('brate').textContent=(META.bt.pooled.base*100).toFixed(1)+'%';
+const mods=META.bt.models; const bestLL=Math.min(...mods.map(m=>m[2]));
+const btb=document.querySelector('#bttable tbody');
+mods.forEach(m=>{const tr=document.createElement('tr'); if(m[2]===bestLL)tr.className='best';
+  tr.innerHTML=`<td>${m[0]}</td><td class="mono">${m[1].toFixed(4)}</td><td class="mono">${m[2].toFixed(4)}</td><td class="mono">${m[3].toFixed(3)}</td>`;
+  btb.appendChild(tr);});
+const ssb=document.querySelector('#sstable tbody');
+META.bt.seasons.forEach(s=>{const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${s.season}</td><td class="mono">${s.n.toLocaleString()}</td><td class="mono">${(s.base*100).toFixed(1)}%</td><td class="mono">${s.brier.toFixed(4)}</td><td class="mono">${s.logloss.toFixed(4)}</td><td class="mono">${s.auc.toFixed(3)}</td>`;
+  ssb.appendChild(tr);});
+const ttb=document.querySelector('#tiertable tbody');
+META.bt.tiers.forEach(t=>{const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${t[0]}</td><td class="mono">${t[1].toLocaleString()}</td><td class="mono">${(t[3]*100).toFixed(0)}%</td><td class="mono">${(t[2]*100).toFixed(0)}%</td>`;
+  ttb.appendChild(tr);});
+
+tbody.addEventListener('click',e=>{const tr=e.target.closest('tr.row');if(!tr)return;
+  const name=tr.querySelector('.pname').textContent;
+  if(state.open.has(name))state.open.delete(name);else state.open.add(name);render();});
+document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value.toLowerCase().trim();render();});
+document.getElementById('posseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  state.pos=b.dataset.pos;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));render();});
+const chmin=document.getElementById('chmin');
+chmin.addEventListener('input',e=>{state.chmin=+e.target.value;document.getElementById('chminv').textContent=state.chmin+'%';render();});
+document.querySelectorAll('th.sortable').forEach(th=>{th.addEventListener('click',()=>{
+  const s=th.dataset.sort; if(state.sort===s)state.dir*=-1;else{state.sort=s;state.dir=-1;}
+  document.querySelectorAll('th').forEach(x=>x.removeAttribute('aria-sort'));
+  th.setAttribute('aria-sort',state.dir<0?'descending':'ascending');render();});});
+const sun='<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2m15.5-6.5-1.8 1.8M8.3 15.7l-1.8 1.8m11 0-1.8-1.8M8.3 8.3 6.5 6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const moon='<svg viewBox="0 0 24 24" fill="none"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+const tb=document.getElementById('themebtn');
+function curTheme(){return document.documentElement.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+function setIcon(){tb.innerHTML=curTheme()==='dark'?sun:moon;}
+tb.addEventListener('click',()=>{const n=curTheme()==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);setIcon();});
+setIcon(); window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',setIcon);
+render();
+</script>

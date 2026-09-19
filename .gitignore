@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+data/
+public/
+refresh.log
+out/*.html
+out/board_data*.json
