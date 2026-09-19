@@ -4,7 +4,7 @@ from sklearn.calibration import CalibratedClassifierCV
 import pipeline as P
 
 con=duckdb.connect()
-TEST=[2022,2023,2024,2025]
+TEST=[2018,2019,2020,2021,2022,2023,2024,2025]
 NEW=['rz_csh','gl_csh','rz_tsh','implied']
 
 def features(con):
@@ -41,7 +41,7 @@ def make(df, trail):
     implied=np.asarray(df['implied'],float); implied[np.isnan(implied)]=22.0
     team_exp=np.array([trail.get((f"{int(season[i])}_{team[i]}",int(week[i])),2.4) for i in range(len(season))])
     cols={'xr':xr,'xc':xc,'xtd':xtd,'vol':vol,'cpg':cpg,'tpg':tpg,'glpg':glp,'rzrpg':rzr,'eztpg':ezt,'rztpg':rzt,
-          'rz_csh':rz_csh,'gl_csh':gl_csh,'rz_tsh':rz_tsh,'implied':implied,'team_exp':team_exp,'snap':snap,
+          'rz_csh':rz_csh,'gl_csh':gl_csh,'rz_tsh':rz_tsh,'exp_gl_td':glp*0.38+rzr*0.08,'implied':implied,'team_exp':team_exp,'snap':snap,
           'naive':nv,'cg':c_g,'is_RB':(pos=='RB'),'is_WR':(pos=='WR'),'is_TE':(pos=='TE'),'is_QB':(pos=='QB')}
     X=np.column_stack([cols[f] for f in P.FEATS]).astype(float)
     Xbase=np.column_stack([cols[f] for f in P.FEATS if f not in NEW]).astype(float)
@@ -75,7 +75,7 @@ def ece(y,p,b=10):
 RES={'v3':{}, 'base':{}, 'naive':{}}
 POS={}; VOL={}
 for T in TEST:
-    P.build_tables(con, [y for y in range(2021,T+1)], [y for y in range(2021,T)])
+    P.build_tables(con, [y for y in range(2016,T+1)], [y for y in range(2016,T)])
     trail=P.team_env(con); df=features(con); X,Xbase,y,base,season,pos,vol=make(df,trail)
     tr=base&(season<T); te=base&(season==T)
     POS[T]=pos[te]; VOL[T]=vol[te]
@@ -135,11 +135,11 @@ L=[]
 L.append("# EndZone Board — model performance report\n")
 L.append("Anytime-touchdown model, walk-forward out-of-sample backtest.\n")
 L.append("- Scoring rates fit only on seasons **before** each test year; the classifier is trained only on prior seasons; every prediction uses pre-kickoff info only.")
-L.append("- Test seasons: **2022, 2023, 2024, 2025**. Evaluation universe: active, involved skill players (RB/WR/TE/QB with ≥1 touch).")
+L.append("- Test seasons: **2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025**. Evaluation universe: active, involved skill players (RB/WR/TE/QB with ≥1 touch).")
 yv,pv=pool(RES['v3']); yb,pb=pool(RES['base']); yn,pn=pool(RES['naive'])
 L.append(f"- Pooled held-out sample: **{len(yv):,} player-games**, base rate **{yv.mean()*100:.1f}%**.\n")
 
-L.append("## Pooled model comparison (2022–2025)\n")
+L.append("## Pooled model comparison (2018–2025)\n")
 L.append("| Model | Brier ↓ | Log loss ↓ | AUC ↑ | Calib. err (ECE) ↓ |")
 L.append("|---|---|---|---|---|")
 for nm,(yy,pp) in [("Naive: count past TDs",(yn,pn)),("Opportunity model",(yb,pb)),("+ carry-share + Vegas (shipped)",(yv,pv))]:
@@ -160,7 +160,7 @@ for s in TEST:
     yn2,pn2=RES['naive'][s]; yb2,pb2=RES['base'][s]; yv2,pv2=RES['v3'][s]
     L.append(f"| {s} | {brier(yn2,pn2):.4f} | {logloss(yn2,pn2):.4f} | {brier(yb2,pb2):.4f} | {logloss(yb2,pb2):.4f} | {brier(yv2,pv2):.4f} | {logloss(yv2,pv2):.4f} |")
 
-L.append("\n## Calibration table — shipped model, pooled (2022–2025)\n")
+L.append("\n## Calibration table — shipped model, pooled (2018–2025)\n")
 L.append("Predicted-probability band vs. the rate players in that band actually scored. Close = well calibrated.\n")
 L.append("| Predicted band | n | Mean predicted | Actually scored |")
 L.append("|---|---|---|---|")
@@ -200,7 +200,7 @@ def seg(mask):
     return (int(mask.sum()),brier(yv[mask],pv[mask]),logloss(yv[mask],pv[mask]),
             auc(yv[mask],pv[mask]),ece(yv[mask],pv[mask]),float(yv[mask].mean()),float(pv[mask].mean()))
 
-E.append("\n## Performance by position (shipped model, pooled 2022–2025)\n")
+E.append("\n## Performance by position (shipped model, pooled 2018–2025)\n")
 E.append("| Position | n | Brier | Log loss | AUC | ECE | Model avg | Actual |")
 E.append("|---|---|---|---|---|---|---|---|")
 for pp in ['RB','WR','TE','QB']:
@@ -251,7 +251,7 @@ for mp,ob,n in pts:
     svg.append(f'<circle cx="{X(mp):.1f}" cy="{Y(ob):.1f}" r="4" fill="#ff6a3d"/>')
 svg.append(f'<text x="{W/2:.0f}" y="{H-6}" fill="#e9eff3" font-size="11" text-anchor="middle">Predicted probability (%)</text>')
 svg.append(f'<text x="14" y="{H/2:.0f}" fill="#e9eff3" font-size="11" text-anchor="middle" transform="rotate(-90 14 {H/2:.0f})">Actual scoring rate (%)</text>')
-svg.append(f'<text x="{X0}" y="24" fill="#e9eff3" font-size="13" font-weight="600">Calibration — anytime-TD model (2022–2025)</text>')
+svg.append(f'<text x="{X0}" y="24" fill="#e9eff3" font-size="13" font-weight="600">Calibration — anytime-TD model (2018–2025)</text>')
 svg.append('</svg>')
 open('out/calibration_curve.svg','w').write("".join(svg))
 

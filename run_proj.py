@@ -7,7 +7,7 @@ SEASON,UPCOMING=2026,2
 # effective bucket TD rates (for reallocating vacated volume to backups)
 R_GL,R_RZR,R_OPEN,R_EZT,R_RZT,R_OPENT=0.38,0.08,0.006,0.42,0.09,0.015
 
-P.build_tables(con,[2021,2022,2023,2024,2025,2026],[2021,2022,2023,2024,2025])
+P.build_tables(con,[2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026],[2016,2017,2018,2019,2020,2021,2022,2023,2024,2025])
 trail=P.team_env(con)
 
 def c0(a): a=np.asarray(a,float); a[np.isnan(a)]=0.0; return a
@@ -39,13 +39,13 @@ def feat_rows(d, cg_key='c_g', pr_g_key='pr_g'):
     rz_tsh=np.clip((c0(d['c_ezt'])+c0(d['c_rzt']))/np.maximum(trt,1e-6),0,1.2)
     implied=np.asarray(d['implied'],float); implied[np.isnan(implied)]=22.0
     return dict(xr=xr,xc=xc,cpg=cpg,tpg=tpg,glp=glp,rzr=rzr,ezt=ezt,rzt=rzt,nv=nv,snap=snap,
-                rz_csh=rz_csh,gl_csh=gl_csh,rz_tsh=rz_tsh,implied=implied,cg=cg,hp=hp)
+                rz_csh=rz_csh,gl_csh=gl_csh,rz_tsh=rz_tsh,exp_gl_td=glp*0.38+rzr*0.08,implied=implied,cg=cg,hp=hp)
 
 def stack(f, pos, team, week=None, season=None, team_exp=None):
     xtd=f['xr']+f['xc']; vol=f['cpg']+f['tpg']
     cols={'xr':f['xr'],'xc':f['xc'],'xtd':xtd,'vol':vol,'cpg':f['cpg'],'tpg':f['tpg'],'glpg':f['glp'],
           'rzrpg':f['rzr'],'eztpg':f['ezt'],'rztpg':f['rzt'],'rz_csh':f['rz_csh'],'gl_csh':f['gl_csh'],
-          'rz_tsh':f['rz_tsh'],'implied':f['implied'],'team_exp':team_exp,'snap':f['snap'],'naive':f['nv'],
+          'rz_tsh':f['rz_tsh'],'exp_gl_td':f['exp_gl_td'],'implied':f['implied'],'team_exp':team_exp,'snap':f['snap'],'naive':f['nv'],
           'cg':f['cg'],'is_RB':(pos=='RB'),'is_WR':(pos=='WR'),'is_TE':(pos=='TE'),'is_QB':(pos=='QB')}
     return np.column_stack([cols[k] for k in P.FEATS]).astype(float)
 
@@ -160,7 +160,7 @@ for i in range(len(spid)):
 rows.sort(key=lambda x:-x['chance']); rows=rows[:90]
 bt=json.load(open('out/backtest_v3.json'))
 asof=con.sql(f"select max(gameday) from 'data/games.csv' where season={SEASON} and week={UPCOMING} and result is null").fetchone()[0]
-_rush,_rec=P.fit_rates(con,[2021,2022,2023,2024,2025])
+_rush,_rec=P.fit_rates(con,[2016,2017,2018,2019,2020,2021,2022,2023,2024,2025])
 meta={"season":SEASON,"week":UPCOMING,"upcoming":True,"games":len(sch),"kickoff":str(asof),
       "rush_rates":{str(k):round(v,3) for k,v in sorted(_rush.items())},
       "rec_rates":{f'{b}_{e}':round(_rec.get((b,e),0),3) for b in range(5) for e in (0,1)},

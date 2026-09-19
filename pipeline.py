@@ -14,7 +14,7 @@ def rost(s): return "read_parquet(["+",".join(f"'data/roster_{x}.parquet'" for x
 def snp(s):  return "read_parquet(["+",".join(f"'data/snaps_{x}.parquet'" for x in s)+"])"
 K=3.0
 FEATS=['xr','xc','xtd','vol','cpg','tpg','glpg','rzrpg','eztpg','rztpg',
-       'rz_csh','gl_csh','rz_tsh','implied','team_exp','snap','naive','cg',
+       'rz_csh','gl_csh','rz_tsh','exp_gl_td','implied','team_exp','snap','naive','cg',
        'is_RB','is_WR','is_TE','is_QB']
 
 def fit_rates(con,fs):
