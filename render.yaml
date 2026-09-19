@@ -1,7 +1,8 @@
 services:
   - type: web
     name: endzone-td-board
-    runtime: static
-    buildCommand: "./build_site.sh"
-    staticPublishPath: ./public
+    runtime: python
+    plan: free
+    buildCommand: "bash build_site.sh"
+    startCommand: "python3 -m http.server $PORT --directory public"
     autoDeploy: true
