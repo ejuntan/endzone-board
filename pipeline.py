@@ -39,15 +39,15 @@ def build_tables(con, years, rate_years):
     con.execute(f"""create or replace table plays as
       select season,week,game_id,posteam,defteam,rusher_player_id pid,rusher_player_name pname,
         1 cy,0 tg,({rushc}) rrate,0.0 crate,(yardline_100<=5)::int n_gl,(yardline_100 between 6 and 20)::int n_rzr,
-        0 n_ezt,0 n_rzt,rush_touchdown td
+        0 n_ezt,0 n_rzt,(yardline_100 between 6 and 10)::int n_i10,(yardline_100<=20)::int inrz,rush_touchdown td
         from {ALL} where rush_attempt=1 and rusher_player_id is not null and yardline_100 is not null
       union all
       select season,week,game_id,posteam,defteam,receiver_player_id,receiver_player_name,0,1,0.0,({recc}),0,0,
-        ({ez}),(case when yardline_100<=20 and not({ez}=1) then 1 else 0 end),pass_touchdown
+        ({ez}),(case when yardline_100<=20 and not({ez}=1) then 1 else 0 end),0,(yardline_100<=20)::int,pass_touchdown
         from {ALL} where pass_attempt=1 and receiver_player_id is not null and yardline_100 is not null""")
     con.execute("""create or replace table pg as
       select season,week,game_id,posteam,pid,any_value(pname) pname,sum(cy) carries,sum(tg) targets,
-        sum(rrate) gx_rush,sum(crate) gx_rec,sum(n_gl) n_gl,sum(n_rzr) n_rzr,sum(n_ezt) n_ezt,sum(n_rzt) n_rzt,
+        sum(rrate) gx_rush,sum(crate) gx_rec,sum(n_gl) n_gl,sum(n_rzr) n_rzr,sum(n_ezt) n_ezt,sum(n_rzt) n_rzt,sum(n_i10) n_i10,
         (max(td)>0)::int scored from plays group by season,week,game_id,posteam,pid""")
     con.execute(f"""create or replace table pos as select gsis_id pid, any_value("position") ppos from {rost(years)} group by gsis_id""")
     con.execute(f"""create or replace table snap as select pl.gsis_id pid, s.game_id, max(s.offense_pct) off_pct
@@ -55,12 +55,13 @@ def build_tables(con, years, rate_years):
     con.execute("""create or replace table pgs as select p.*, sn.off_pct from pg p left join snap sn on p.pid=sn.pid and p.game_id=sn.game_id""")
     # team red-zone carry/target totals per game, then trailing
     con.execute("""create or replace table teamrz as
-      select season,week,posteam, sum(n_gl) tgl, sum(n_gl+n_rzr) trz, sum(n_ezt+n_rzt) trt
-      from pg group by season,week,posteam""")
+      select season,week,posteam, sum(n_gl) tgl, sum(n_gl+n_rzr) trz, sum(n_ezt+n_rzt) trt,
+        sum(inrz) rz_pl, sum(case when inrz=1 and td=1 then 1 else 0 end) rz_td
+      from plays group by season,week,posteam""")
     con.execute("""create or replace table teamrz_trail as
       select season,week,posteam,
-        coalesce(sum(tgl) over w,0) tgl_tr, coalesce(sum(trz) over w,0) trz_tr, coalesce(sum(trt) over w,0) trt_tr,
-        count(*) over w tg_g
+        coalesce(sum(tgl) over w,0) tgl_tr, coalesce(sum(trz) over w,0) trz_tr, coalesce(sum(trt) over w,0) trt_tr, coalesce(sum(rz_pl) over w,0) rzpl_tr,
+        coalesce(sum(rz_td) over w,0) rztd_tr, count(*) over w tg_g
       from teamrz window w as (partition by posteam,season order by week rows between unbounded preceding and 1 preceding)""")
     # Vegas implied team totals from schedule
     con.execute("""create or replace table vegas as
@@ -73,13 +74,13 @@ def build_tables(con, years, rate_years):
         coalesce(sum(gx_rush) over w,0) c_rush,coalesce(sum(gx_rec) over w,0) c_rec,
         coalesce(sum(carries) over w,0) c_car,coalesce(sum(targets) over w,0) c_tgt,
         coalesce(sum(n_gl) over w,0) c_gl,coalesce(sum(n_rzr) over w,0) c_rzr,
-        coalesce(sum(n_ezt) over w,0) c_ezt,coalesce(sum(n_rzt) over w,0) c_rzt,
+        coalesce(sum(n_ezt) over w,0) c_ezt,coalesce(sum(n_rzt) over w,0) c_rzt, coalesce(sum(n_i10) over w,0) c_i10,
         coalesce(sum(scored) over w,0) c_scr,count(*) over w c_g, avg(off_pct) over w a_snap
       from pgs p left join pos po using(pid)
       window w as (partition by pid,season order by week rows between unbounded preceding and 1 preceding)""")
     con.execute("""create or replace table prior as
       select pid,season+1 season,avg(gx_rush) pr_rush,avg(gx_rec) pr_rec,avg(carries) pr_car,avg(targets) pr_tgt,
-        avg(n_gl) pr_gl,avg(n_rzr) pr_rzr,avg(n_ezt) pr_ezt,avg(n_rzt) pr_rzt,avg(scored) pr_scr,avg(off_pct) pr_snap,
+        avg(n_gl) pr_gl,avg(n_rzr) pr_rzr,avg(n_ezt) pr_ezt,avg(n_rzt) pr_rzt,avg(n_i10) pr_i10,avg(scored) pr_scr,avg(off_pct) pr_snap,
         count(*) pr_g from pgs group by pid,season""")
     con.execute("""create or replace table tg as select season,week,posteam,sum(sa) t from (
         select season,week,game_id,posteam,(max(td)>0)::int sa from plays group by season,week,game_id,posteam,pid)

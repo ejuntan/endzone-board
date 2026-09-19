@@ -56,8 +56,8 @@ Xtr_all=stack(fT,pos,team,team_exp=te_exp)
 carries=c0(tdf['carries']);targets=c0(tdf['targets']);scored=c0(tdf['scored']).astype(int)
 skill=np.isin(pos,['RB','WR','TE','QB']); base=skill&((carries+targets)>=1)&((fT['cg']>=1)|fT['hp'])
 train=base&((season<SEASON)|((season==SEASON)&(week<UPCOMING)))
-clf=CalibratedClassifierCV(HistGradientBoostingClassifier(max_depth=3,max_iter=300,learning_rate=0.05,
-    l2_regularization=1.0,min_samples_leaf=60,random_state=0),method='sigmoid',cv=3)
+clf=HistGradientBoostingClassifier(max_depth=3,max_iter=300,learning_rate=0.05,
+    l2_regularization=1.0,min_samples_leaf=60,random_state=0)  # raw: better calibrated for workhorses
 clf.fit(Xtr_all[train],scored[train]); print("trained on",int(train.sum()))
 
 # ---- snapshot entering upcoming week ----

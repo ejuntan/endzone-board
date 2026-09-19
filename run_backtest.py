@@ -47,11 +47,11 @@ def make(df, trail):
     Xbase=np.column_stack([cols[f] for f in P.FEATS if f not in NEW]).astype(float)
     carries=c0(df['carries']);targets=c0(df['targets']);scored=c0(df['scored']).astype(int)
     skill=np.isin(pos,['RB','WR','TE','QB']); base=skill&((carries+targets)>=1)&((c_g>=1)|has_pr)
-    return X,Xbase,scored,base,season
+    return X,Xbase,scored,base,season,pos,vol
 
 def fitpred(Xtr,ytr,Xte):
-    clf=CalibratedClassifierCV(HistGradientBoostingClassifier(max_depth=3,max_iter=300,learning_rate=0.05,
-        l2_regularization=1.0,min_samples_leaf=60,random_state=0),method='sigmoid',cv=3)
+    clf=HistGradientBoostingClassifier(max_depth=3,max_iter=300,learning_rate=0.05,
+        l2_regularization=1.0,min_samples_leaf=60,random_state=0)  # raw: well-calibrated at top end
     clf.fit(Xtr,ytr); return clf.predict_proba(Xte)[:,1]
 
 def brier(y,p):return np.mean((p-y)**2)
@@ -73,10 +73,12 @@ def ece(y,p,b=10):
     return s
 
 RES={'v3':{}, 'base':{}, 'naive':{}}
+POS={}; VOL={}
 for T in TEST:
     P.build_tables(con, [y for y in range(2021,T+1)], [y for y in range(2021,T)])
-    trail=P.team_env(con); df=features(con); X,Xbase,y,base,season=make(df,trail)
+    trail=P.team_env(con); df=features(con); X,Xbase,y,base,season,pos,vol=make(df,trail)
     tr=base&(season<T); te=base&(season==T)
+    POS[T]=pos[te]; VOL[T]=vol[te]
     RES['v3'][T]=(y[te], fitpred(X[tr],y[tr],X[te]))
     RES['base'][T]=(y[te], fitpred(Xbase[tr],y[tr],Xbase[te]))
     # naive = trailing TD rate (feature 'naive' index)
@@ -111,3 +113,149 @@ bt={"seasons":[{"season":s,"n":int(len(RES['v3'][s][0])),"base":round(float(RES[
     "tiers":tout}
 json.dump(bt,open('out/backtest_v3.json','w'),indent=1)
 print("\nsaved out/backtest_v3.json")
+
+# ---------------------------------------------------------------------------
+# Comprehensive human-readable report (all metrics + calibration tables)
+# ---------------------------------------------------------------------------
+def bands(y,p,edges=(0,.05,.10,.15,.20,.25,.30,.40,.50,1.01)):
+    out=[]
+    for i in range(len(edges)-1):
+        m=(p>=edges[i])&(p<edges[i+1])
+        if m.sum(): out.append((edges[i],min(edges[i+1],1.0),int(m.sum()),float(p[m].mean()),float(y[m].mean())))
+    return out
+def tierrows(y,p):
+    def T(x): return 'Elite (45%+)' if x>=.45 else 'Strong (33-45%)' if x>=.33 else 'Live (22-33%)' if x>=.22 else 'Longshot (<22%)'
+    tr=np.array([T(x) for x in p]); out=[]
+    for t in ['Elite (45%+)','Strong (33-45%)','Live (22-33%)','Longshot (<22%)']:
+        m=tr==t
+        if m.sum(): out.append((t,int(m.sum()),float(p[m].mean()),float(y[m].mean())))
+    return out
+
+L=[]
+L.append("# EndZone Board — model performance report\n")
+L.append("Anytime-touchdown model, walk-forward out-of-sample backtest.\n")
+L.append("- Scoring rates fit only on seasons **before** each test year; the classifier is trained only on prior seasons; every prediction uses pre-kickoff info only.")
+L.append("- Test seasons: **2022, 2023, 2024, 2025**. Evaluation universe: active, involved skill players (RB/WR/TE/QB with ≥1 touch).")
+yv,pv=pool(RES['v3']); yb,pb=pool(RES['base']); yn,pn=pool(RES['naive'])
+L.append(f"- Pooled held-out sample: **{len(yv):,} player-games**, base rate **{yv.mean()*100:.1f}%**.\n")
+
+L.append("## Pooled model comparison (2022–2025)\n")
+L.append("| Model | Brier ↓ | Log loss ↓ | AUC ↑ | Calib. err (ECE) ↓ |")
+L.append("|---|---|---|---|---|")
+for nm,(yy,pp) in [("Naive: count past TDs",(yn,pn)),("Opportunity model",(yb,pb)),("+ carry-share + Vegas (shipped)",(yv,pv))]:
+    L.append(f"| {nm} | {brier(yy,pp):.4f} | {logloss(yy,pp):.4f} | {auc(yy,pp):.3f} | {ece(yy,pp):.3f} |")
+
+L.append("\n## Per-season (shipped model)\n")
+L.append("| Season | n | Base rate | Brier | Log loss | AUC | ECE |")
+L.append("|---|---|---|---|---|---|---|")
+for s in TEST:
+    y,p=RES['v3'][s]
+    L.append(f"| {s} | {len(y):,} | {y.mean()*100:.1f}% | {brier(y,p):.4f} | {logloss(y,p):.4f} | {auc(y,p):.3f} | {ece(y,p):.3f} |")
+y,p=pool(RES['v3']); L.append(f"| **Pooled** | **{len(y):,}** | **{y.mean()*100:.1f}%** | **{brier(y,p):.4f}** | **{logloss(y,p):.4f}** | **{auc(y,p):.3f}** | **{ece(y,p):.3f}** |")
+
+L.append("\n## Per-season Brier / log loss, all models\n")
+L.append("| Season | Naive Brier | Naive LogLoss | Opp Brier | Opp LogLoss | v3 Brier | v3 LogLoss |")
+L.append("|---|---|---|---|---|---|---|")
+for s in TEST:
+    yn2,pn2=RES['naive'][s]; yb2,pb2=RES['base'][s]; yv2,pv2=RES['v3'][s]
+    L.append(f"| {s} | {brier(yn2,pn2):.4f} | {logloss(yn2,pn2):.4f} | {brier(yb2,pb2):.4f} | {logloss(yb2,pb2):.4f} | {brier(yv2,pv2):.4f} | {logloss(yv2,pv2):.4f} |")
+
+L.append("\n## Calibration table — shipped model, pooled (2022–2025)\n")
+L.append("Predicted-probability band vs. the rate players in that band actually scored. Close = well calibrated.\n")
+L.append("| Predicted band | n | Mean predicted | Actually scored |")
+L.append("|---|---|---|---|")
+for lo,hi,n,mp,ob in bands(yv,pv):
+    L.append(f"| {int(lo*100)}–{int(hi*100)}% | {n:,} | {mp*100:.1f}% | {ob*100:.1f}% |")
+
+L.append("\n## Tier hit-rate — shipped model, pooled\n")
+L.append("| Tier | Players | Model avg | Actually scored |")
+L.append("|---|---|---|---|")
+for t,n,mp,ob in tierrows(yv,pv):
+    L.append(f"| {t} | {n:,} | {mp*100:.1f}% | {ob*100:.1f}% |")
+
+L.append("\n## Per-season calibration tables (shipped model)\n")
+for s in TEST:
+    y,p=RES['v3'][s]
+    L.append(f"\n### {s}\n")
+    L.append("| Predicted band | n | Mean predicted | Actually scored |")
+    L.append("|---|---|---|---|")
+    for lo,hi,n,mp,ob in bands(y,p):
+        L.append(f"| {int(lo*100)}–{int(hi*100)}% | {n:,} | {mp*100:.1f}% | {ob*100:.1f}% |")
+
+L.append("\n---\n*Metrics: Brier = mean squared error of probabilities; Log loss = negative log-likelihood; "
+         "AUC = ranking (P a scorer outranks a non-scorer); ECE = mean gap between predicted and observed across deciles. Lower is better except AUC.*\n")
+open('out/model_report.md','w').write("\n".join(L))
+print("wrote out/model_report.md")
+
+# ===========================================================================
+# EXTENDED breakdowns: by position, by workload tier, + calibration curve SVG
+# ===========================================================================
+yv,pv=pool(RES['v3'])
+POSp=np.concatenate([POS[s] for s in TEST]).astype(str)
+VOLp=np.concatenate([VOL[s] for s in TEST])
+E=[]  # extra report sections
+
+def seg(mask):
+    if mask.sum()<30: return None
+    return (int(mask.sum()),brier(yv[mask],pv[mask]),logloss(yv[mask],pv[mask]),
+            auc(yv[mask],pv[mask]),ece(yv[mask],pv[mask]),float(yv[mask].mean()),float(pv[mask].mean()))
+
+E.append("\n## Performance by position (shipped model, pooled 2022–2025)\n")
+E.append("| Position | n | Brier | Log loss | AUC | ECE | Model avg | Actual |")
+E.append("|---|---|---|---|---|---|---|---|")
+for pp in ['RB','WR','TE','QB']:
+    s=seg(POSp==pp)
+    if s: E.append(f"| {pp} | {s[0]:,} | {s[1]:.4f} | {s[2]:.4f} | {s[3]:.3f} | {s[4]:.3f} | {s[6]*100:.1f}% | {s[5]*100:.1f}% |")
+
+E.append("\n## Performance by workload tier (trailing carries+targets / game)\n")
+for lab,mk in [('Workhorse (≥15/g)',VOLp>=15),('Regular (8–15/g)',(VOLp>=8)&(VOLp<15)),
+               ('Rotational (3–8/g)',(VOLp>=3)&(VOLp<8))]:
+    s=seg(mk)
+    if s:
+        if 'Workload' not in "".join(E[-6:]):
+            E.append("| Workload | n | Brier | Log loss | AUC | ECE | Model avg | Actual |")
+            E.append("|---|---|---|---|---|---|---|---|")
+        E.append(f"| {lab} | {s[0]:,} | {s[1]:.4f} | {s[2]:.4f} | {s[3]:.3f} | {s[4]:.3f} | {s[6]*100:.1f}% | {s[5]*100:.1f}% |")
+
+# calibration curve (deciles by predicted probability)
+def curve(y,p,nb=10):
+    q=np.quantile(p,np.linspace(0,1,nb+1)); q[0]-=1e-9; q[-1]+=1e-9; pts=[]
+    for i in range(nb):
+        m=(p>q[i])&(p<=q[i+1])
+        if m.sum(): pts.append((float(p[m].mean()),float(y[m].mean()),int(m.sum())))
+    return pts
+pts=curve(yv,pv)
+E.append("\n## Calibration curve (deciles, shipped model, pooled)\n")
+E.append(f"Total predictions: **{len(yv):,}**. Each row is one decile of predicted probability.\n")
+E.append("| Decile | n | Mean predicted | Actually scored |")
+E.append("|---|---|---|---|")
+for i,(mp,ob,n) in enumerate(pts,1):
+    E.append(f"| {i} | {n:,} | {mp*100:.1f}% | {ob*100:.1f}% |")
+E.append("\nSee `calibration_curve.svg` for the reliability plot (predicted vs actual, with the diagonal = perfect calibration).")
+
+# write SVG reliability plot (no deps)
+W=H=340; M=44; X0=M; Y0=H-M; PW=W-2*M
+def X(v): return X0+v*PW
+def Y(v): return Y0-v*PW
+svg=[f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" font-family="sans-serif">']
+svg.append(f'<rect width="{W}" height="{H}" fill="#0d1317"/>')
+for g in range(0,11,2):
+    v=g/10; svg.append(f'<line x1="{X(v):.0f}" y1="{Y0}" x2="{X(v):.0f}" y2="{Y0-PW}" stroke="#26333d" stroke-width="1"/>')
+    svg.append(f'<line x1="{X0}" y1="{Y(v):.0f}" x2="{X0+PW}" y2="{Y(v):.0f}" stroke="#26333d" stroke-width="1"/>')
+    svg.append(f'<text x="{X(v):.0f}" y="{Y0+16}" fill="#8496a2" font-size="10" text-anchor="middle">{int(v*100)}</text>')
+    svg.append(f'<text x="{X0-8}" y="{Y(v)+4:.0f}" fill="#8496a2" font-size="10" text-anchor="end">{int(v*100)}</text>')
+svg.append(f'<line x1="{X(0)}" y1="{Y(0)}" x2="{X(1)}" y2="{Y(1)}" stroke="#66798a" stroke-dasharray="4 4" stroke-width="1.5"/>')
+d="M "+" L ".join(f"{X(mp):.1f} {Y(ob):.1f}" for mp,ob,_ in pts)
+svg.append(f'<path d="{d}" fill="none" stroke="#ff6a3d" stroke-width="2.5"/>')
+for mp,ob,n in pts:
+    svg.append(f'<circle cx="{X(mp):.1f}" cy="{Y(ob):.1f}" r="4" fill="#ff6a3d"/>')
+svg.append(f'<text x="{W/2:.0f}" y="{H-6}" fill="#e9eff3" font-size="11" text-anchor="middle">Predicted probability (%)</text>')
+svg.append(f'<text x="14" y="{H/2:.0f}" fill="#e9eff3" font-size="11" text-anchor="middle" transform="rotate(-90 14 {H/2:.0f})">Actual scoring rate (%)</text>')
+svg.append(f'<text x="{X0}" y="24" fill="#e9eff3" font-size="13" font-weight="600">Calibration — anytime-TD model (2022–2025)</text>')
+svg.append('</svg>')
+open('out/calibration_curve.svg','w').write("".join(svg))
+
+# append extra sections to the report
+rep=open('out/model_report.md').read()
+open('out/model_report.md','w').write(rep+"\n"+"\n".join(E)+"\n")
+print("appended breakdowns + wrote out/calibration_curve.svg")
