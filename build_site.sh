@@ -5,8 +5,8 @@ python3 -m pip install -r requirements.txt
 mkdir -p data out public
 CUR="${SEASON:-2026}"
 BASE="https://github.com/nflverse/nflverse-data/releases/download"
-echo "downloading nflverse data (2021-$CUR)..."
-for yr in 2021 2022 2023 2024 2025 "$CUR"; do
+echo "downloading nflverse data (2016-$CUR)..."
+for yr in $(seq 2016 "$CUR"); do
   curl -sL -m 240 -o "data/pbp_${yr}.parquet"      "$BASE/pbp/play_by_play_${yr}.parquet" || true
   curl -sL -m 120 -o "data/roster_${yr}.parquet"   "$BASE/rosters/roster_${yr}.parquet" || true
   curl -sL -m 120 -o "data/snaps_${yr}.parquet"    "$BASE/snap_counts/snap_counts_${yr}.parquet" || true
