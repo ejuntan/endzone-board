@@ -22,3 +22,4 @@ Render → the service → Settings → Deploy Hook (copy URL), then either:
 - `bash refresh.sh` — pull data + regenerate `out/td-board.html` for the next unplayed week.
 - Pipeline: `pipeline.py` (features), `run_backtest.py` (validation), `run_proj.py` (projection),
   `render_board.py` (template → HTML). Data (parquet) is downloaded, not committed.
+# endzone-board
