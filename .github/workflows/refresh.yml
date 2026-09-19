@@ -1,0 +1,20 @@
+name: Refresh board
+# Rebuilds the Render site on a schedule so the board stays gameday-current.
+# Setup: add repo secret RENDER_DEPLOY_HOOK = your Render "Deploy Hook" URL
+# (Render → the service → Settings → Deploy Hook).
+on:
+  workflow_dispatch: {}          # lets you trigger a rebuild manually too
+  schedule:
+    - cron: '0 12 * * *'         # daily 12:00 UTC — pick up results + injury updates
+    - cron: '30 16 * * 0'        # Sunday 16:30 UTC (~12:30pm ET) — final inactives before 1pm kickoffs
+    - cron: '0 23 * * 4'         # Thursday 23:00 UTC — pre-TNF refresh
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
+            echo "RENDER_DEPLOY_HOOK secret not set"; exit 1
+          fi
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
