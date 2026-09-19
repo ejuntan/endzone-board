@@ -14,6 +14,7 @@ def c0(a): a=np.asarray(a,float); a[np.isnan(a)]=0.0; return a
 # ---- training df (all completed rows) ----
 tdf=con.sql("""select w.season,w.week,w.posteam,w.ppos,w.carries,w.targets,w.scored,
     w.c_rush,w.c_rec,w.c_car,w.c_tgt,w.c_gl,w.c_rzr,w.c_ezt,w.c_rzt,w.c_scr,w.c_g,w.a_snap,
+    w.c_car_l3,w.c_tgt_l3,w.c_gl_l3,w.c_g_l3,w.a_snap_l3,
     pr.pr_rush,pr.pr_rec,pr.pr_car,pr.pr_tgt,pr.pr_gl,pr.pr_rzr,pr.pr_ezt,pr.pr_rzt,pr.pr_scr,pr.pr_snap,pr.pr_g,
     tr.tgl_tr,tr.trz_tr,tr.trt_tr, ve.implied
   from pgw w left join prior pr on w.pid=pr.pid and w.season=pr.season
@@ -38,15 +39,22 @@ def feat_rows(d, cg_key='c_g', pr_g_key='pr_g'):
     gl_csh=np.clip(c0(d['c_gl'])/np.maximum(tgl,1e-6),0,1.2)
     rz_tsh=np.clip((c0(d['c_ezt'])+c0(d['c_rzt']))/np.maximum(trt,1e-6),0,1.2)
     implied=np.asarray(d['implied'],float); implied[np.isnan(implied)]=22.0
+    g3=c0(d['c_g_l3'])
+    def r3(cs,fb): v=c0(cs)/np.maximum(g3,1e-6); return np.where(g3>=1,v,fb)
+    cpg3=r3(d['c_car_l3'],cpg); tpg3=r3(d['c_tgt_l3'],tpg); glp3=r3(d['c_gl_l3'],glp)
+    a3=np.asarray(d['a_snap_l3'],float); snap3=np.where(~np.isnan(a3),a3,snap)
+    trend_car=cpg3-cpg; trend_gl=glp3-glp; trend_tgt=tpg3-tpg
     return dict(xr=xr,xc=xc,cpg=cpg,tpg=tpg,glp=glp,rzr=rzr,ezt=ezt,rzt=rzt,nv=nv,snap=snap,
-                rz_csh=rz_csh,gl_csh=gl_csh,rz_tsh=rz_tsh,exp_gl_td=glp*0.38+rzr*0.08,implied=implied,cg=cg,hp=hp)
+                rz_csh=rz_csh,gl_csh=gl_csh,rz_tsh=rz_tsh,exp_gl_td=glp*0.38+rzr*0.08,implied=implied,cg=cg,hp=hp,
+                cpg3=cpg3,tpg3=tpg3,glp3=glp3,snap3=snap3,trend_car=trend_car,trend_gl=trend_gl,trend_tgt=trend_tgt)
 
 def stack(f, pos, team, week=None, season=None, team_exp=None):
     xtd=f['xr']+f['xc']; vol=f['cpg']+f['tpg']
     cols={'xr':f['xr'],'xc':f['xc'],'xtd':xtd,'vol':vol,'cpg':f['cpg'],'tpg':f['tpg'],'glpg':f['glp'],
           'rzrpg':f['rzr'],'eztpg':f['ezt'],'rztpg':f['rzt'],'rz_csh':f['rz_csh'],'gl_csh':f['gl_csh'],
           'rz_tsh':f['rz_tsh'],'exp_gl_td':f['exp_gl_td'],'implied':f['implied'],'team_exp':team_exp,'snap':f['snap'],'naive':f['nv'],
-          'cg':f['cg'],'is_RB':(pos=='RB'),'is_WR':(pos=='WR'),'is_TE':(pos=='TE'),'is_QB':(pos=='QB')}
+          'cg':f['cg'],'cpg3':f['cpg3'],'tpg3':f['tpg3'],'glp3':f['glp3'],'snap3':f['snap3'],'trend_car':f['trend_car'],'trend_gl':f['trend_gl'],'trend_tgt':f['trend_tgt'],
+          'is_RB':(pos=='RB'),'is_WR':(pos=='WR'),'is_TE':(pos=='TE'),'is_QB':(pos=='QB')}
     return np.column_stack([cols[k] for k in P.FEATS]).astype(float)
 
 fT=feat_rows(tdf)
@@ -65,6 +73,8 @@ snap_df=con.sql(f"""
   with cur as (select pid,sum(gx_rush) c_rush,sum(gx_rec) c_rec,sum(carries) c_car,sum(targets) c_tgt,
       sum(n_gl) c_gl,sum(n_rzr) c_rzr,sum(n_ezt) c_ezt,sum(n_rzt) c_rzt,sum(scored) c_scr,count(*) c_g,avg(off_pct) a_snap
       from pgs where season={SEASON} and week<{UPCOMING} group by pid),
+    cur3 as (select pid,sum(carries) c_car_l3,sum(targets) c_tgt_l3,sum(n_gl) c_gl_l3,sum(n_rzr) c_rzr_l3,count(*) c_g_l3,avg(off_pct) a_snap_l3
+      from pgs where season={SEASON} and week<{UPCOMING} and week>={UPCOMING}-3 group by pid),
     lastteam as (select pid, arg_max(posteam,season*100+week) posteam from pg where season in ({SEASON},{SEASON-1}) group by pid),
     teamcur as (select posteam, sum(tgl) tgl_tr, sum(trz) trz_tr, sum(trt) trt_tr
       from teamrz where season={SEASON} and week<{UPCOMING} group by posteam),
@@ -78,9 +88,11 @@ snap_df=con.sql(f"""
     coalesce(c_rush,0) c_rush,coalesce(c_rec,0) c_rec,coalesce(c_car,0) c_car,coalesce(c_tgt,0) c_tgt,
     coalesce(c_gl,0) c_gl,coalesce(c_rzr,0) c_rzr,coalesce(c_ezt,0) c_ezt,coalesce(c_rzt,0) c_rzt,
     coalesce(c_scr,0) c_scr,coalesce(c_g,0) c_g,a_snap,
+    coalesce(cur3.c_car_l3,0) c_car_l3,coalesce(cur3.c_tgt_l3,0) c_tgt_l3,coalesce(cur3.c_gl_l3,0) c_gl_l3,coalesce(cur3.c_g_l3,0) c_g_l3,cur3.a_snap_l3,
     pr.pr_rush,pr.pr_rec,pr.pr_car,pr.pr_tgt,pr.pr_gl,pr.pr_rzr,pr.pr_ezt,pr.pr_rzt,pr.pr_scr,pr.pr_snap,pr.pr_g,
     lt.posteam, tc.tgl_tr, tc.trz_tr, tc.trt_tr, veg.implied, inj.status
   from cur full outer join (select * from prior where season={SEASON}) pr on cur.pid=pr.pid
+  left join cur3 on coalesce(cur.pid,pr.pid)=cur3.pid
   left join lastteam lt on coalesce(cur.pid,pr.pid)=lt.pid
   left join teamcur tc on lt.posteam=tc.posteam
   left join veg on lt.posteam=veg.team

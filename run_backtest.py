@@ -10,6 +10,7 @@ NEW=['rz_csh','gl_csh','rz_tsh','implied']
 def features(con):
     df=con.sql("""select w.season,w.week,w.posteam,w.ppos,w.carries,w.targets,w.scored,
         w.c_rush,w.c_rec,w.c_car,w.c_tgt,w.c_gl,w.c_rzr,w.c_ezt,w.c_rzt,w.c_scr,w.c_g,w.a_snap,
+        w.c_car_l3,w.c_tgt_l3,w.c_gl_l3,w.c_g_l3,w.a_snap_l3,
         pr.pr_rush,pr.pr_rec,pr.pr_car,pr.pr_tgt,pr.pr_gl,pr.pr_rzr,pr.pr_ezt,pr.pr_rzt,pr.pr_scr,pr.pr_snap,pr.pr_g,
         tr.tgl_tr,tr.trz_tr,tr.trt_tr, ve.implied
       from pgw w left join prior pr on w.pid=pr.pid and w.season=pr.season
@@ -40,9 +41,15 @@ def make(df, trail):
     rz_tsh=np.clip((c0(df['c_ezt'])+c0(df['c_rzt']))/np.maximum(trt,1e-6),0,1.2)
     implied=np.asarray(df['implied'],float); implied[np.isnan(implied)]=22.0
     team_exp=np.array([trail.get((f"{int(season[i])}_{team[i]}",int(week[i])),2.4) for i in range(len(season))])
+    g3=c0(df['c_g_l3'])
+    def r3(cs,fb): v=c0(cs)/np.maximum(g3,1e-6); return np.where(g3>=1,v,fb)
+    cpg3=r3(df['c_car_l3'],cpg);tpg3=r3(df['c_tgt_l3'],tpg);glp3=r3(df['c_gl_l3'],glp)
+    a3=np.asarray(df['a_snap_l3'],float); snap3=np.where(~np.isnan(a3),a3,snap)
+    trend_car=cpg3-cpg; trend_gl=glp3-glp; trend_tgt=tpg3-tpg
     cols={'xr':xr,'xc':xc,'xtd':xtd,'vol':vol,'cpg':cpg,'tpg':tpg,'glpg':glp,'rzrpg':rzr,'eztpg':ezt,'rztpg':rzt,
           'rz_csh':rz_csh,'gl_csh':gl_csh,'rz_tsh':rz_tsh,'exp_gl_td':glp*0.38+rzr*0.08,'implied':implied,'team_exp':team_exp,'snap':snap,
-          'naive':nv,'cg':c_g,'is_RB':(pos=='RB'),'is_WR':(pos=='WR'),'is_TE':(pos=='TE'),'is_QB':(pos=='QB')}
+          'naive':nv,'cg':c_g,'cpg3':cpg3,'tpg3':tpg3,'glp3':glp3,'snap3':snap3,'trend_car':trend_car,'trend_gl':trend_gl,'trend_tgt':trend_tgt,
+          'is_RB':(pos=='RB'),'is_WR':(pos=='WR'),'is_TE':(pos=='TE'),'is_QB':(pos=='QB')}
     X=np.column_stack([cols[f] for f in P.FEATS]).astype(float)
     Xbase=np.column_stack([cols[f] for f in P.FEATS if f not in NEW]).astype(float)
     carries=c0(df['carries']);targets=c0(df['targets']);scored=c0(df['scored']).astype(int)

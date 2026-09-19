@@ -15,6 +15,7 @@ def snp(s):  return "read_parquet(["+",".join(f"'data/snaps_{x}.parquet'" for x 
 K=3.0
 FEATS=['xr','xc','xtd','vol','cpg','tpg','glpg','rzrpg','eztpg','rztpg',
        'rz_csh','gl_csh','rz_tsh','exp_gl_td','implied','team_exp','snap','naive','cg',
+       'cpg3','tpg3','glp3','snap3','trend_car','trend_gl','trend_tgt',
        'is_RB','is_WR','is_TE','is_QB']
 
 def fit_rates(con,fs):
@@ -75,9 +76,13 @@ def build_tables(con, years, rate_years):
         coalesce(sum(carries) over w,0) c_car,coalesce(sum(targets) over w,0) c_tgt,
         coalesce(sum(n_gl) over w,0) c_gl,coalesce(sum(n_rzr) over w,0) c_rzr,
         coalesce(sum(n_ezt) over w,0) c_ezt,coalesce(sum(n_rzt) over w,0) c_rzt, coalesce(sum(n_i10) over w,0) c_i10,
-        coalesce(sum(scored) over w,0) c_scr,count(*) over w c_g, avg(off_pct) over w a_snap
+        coalesce(sum(scored) over w,0) c_scr,count(*) over w c_g, avg(off_pct) over w a_snap,
+        coalesce(sum(carries) over w3,0) c_car_l3, coalesce(sum(targets) over w3,0) c_tgt_l3,
+        coalesce(sum(n_gl) over w3,0) c_gl_l3, coalesce(sum(n_rzr) over w3,0) c_rzr_l3,
+        count(*) over w3 c_g_l3, avg(off_pct) over w3 a_snap_l3
       from pgs p left join pos po using(pid)
-      window w as (partition by pid,season order by week rows between unbounded preceding and 1 preceding)""")
+      window w as (partition by pid,season order by week rows between unbounded preceding and 1 preceding),
+             w3 as (partition by pid,season order by week rows between 3 preceding and 1 preceding)""")
     con.execute("""create or replace table prior as
       select pid,season+1 season,avg(gx_rush) pr_rush,avg(gx_rec) pr_rec,avg(carries) pr_car,avg(targets) pr_tgt,
         avg(n_gl) pr_gl,avg(n_rzr) pr_rzr,avg(n_ezt) pr_ezt,avg(n_rzt) pr_rzt,avg(n_i10) pr_i10,avg(scored) pr_scr,avg(off_pct) pr_snap,
