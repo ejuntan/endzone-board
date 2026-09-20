@@ -14,6 +14,9 @@ done
 curl -sL -m 120 -o "data/injuries_${CUR}.parquet"  "$BASE/injuries/injuries_${CUR}.parquet" || true
 curl -sL -m 60  -o data/games.csv "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
 curl -sL -m 120 -o data/players.parquet "$BASE/players/players.parquet"
+# Next Gen Stats (combined all-seasons files; used for trailing form features)
+curl -sL -m 120 -o data/ngs_receiving.parquet "$BASE/nextgen_stats/ngs_receiving.parquet"
+curl -sL -m 120 -o data/ngs_rushing.parquet   "$BASE/nextgen_stats/ngs_rushing.parquet"
 # auto-detect next unplayed week and point run_proj at it
 NEXTWK=$(python3 - <<PY
 import duckdb

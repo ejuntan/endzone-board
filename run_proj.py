@@ -16,11 +16,17 @@ tdf=con.sql("""select w.season,w.week,w.posteam,w.ppos,w.carries,w.targets,w.sco
     w.c_rush,w.c_rec,w.c_car,w.c_tgt,w.c_gl,w.c_rzr,w.c_ezt,w.c_rzt,w.c_scr,w.c_g,w.a_snap,
     w.c_car_l3,w.c_tgt_l3,w.c_gl_l3,w.c_g_l3,w.a_snap_l3,
     pr.pr_rush,pr.pr_rec,pr.pr_car,pr.pr_tgt,pr.pr_gl,pr.pr_rzr,pr.pr_ezt,pr.pr_rzt,pr.pr_scr,pr.pr_snap,pr.pr_g,
-    tr.tgl_tr,tr.trz_tr,tr.trt_tr, ve.implied
+    tr.tgl_tr,tr.trz_tr,tr.trt_tr, ve.implied,
+    nt.n_sep,nt.n_yacoe,nt.n_cush,nt.n_catchp,nt.n_eff,nt.n_ryoe,nt.n_box8,nt.n_rpoe,
+    np.p_sep,np.p_yacoe,np.p_cush,np.p_catchp,np.p_eff,np.p_ryoe,np.p_box8,np.p_rpoe
   from pgw w left join prior pr on w.pid=pr.pid and w.season=pr.season
   left join teamrz_trail tr on w.season=tr.season and w.week=tr.week and w.posteam=tr.posteam
-  left join vegas ve on w.game_id=ve.game_id and w.posteam=ve.team""").fetchnumpy()
+  left join vegas ve on w.game_id=ve.game_id and w.posteam=ve.team
+  left join ngs_trail nt on w.pid=nt.pid and w.season=nt.season and w.week=nt.week
+  left join ngs_prior np on w.pid=np.pid and w.season=np.season
+  order by w.season,w.week,w.pid""").fetchnumpy()
 has_pr=c0(tdf['pr_g'])>0
+NGS_GM=P.ngs_global_means(tdf)
 gm={n:float(np.mean(c0(tdf[n])[has_pr])) for n in ['pr_rush','pr_rec','pr_car','pr_tgt','pr_gl','pr_rzr','pr_ezt','pr_rzt','pr_scr']}
 asn=np.asarray(tdf['a_snap'],float); gsnap=float(np.nanmean(asn[~np.isnan(asn)]))
 
@@ -44,9 +50,11 @@ def feat_rows(d, cg_key='c_g', pr_g_key='pr_g'):
     cpg3=r3(d['c_car_l3'],cpg); tpg3=r3(d['c_tgt_l3'],tpg); glp3=r3(d['c_gl_l3'],glp)
     a3=np.asarray(d['a_snap_l3'],float); snap3=np.where(~np.isnan(a3),a3,snap)
     trend_car=cpg3-cpg; trend_gl=glp3-glp; trend_tgt=tpg3-tpg
-    return dict(xr=xr,xc=xc,cpg=cpg,tpg=tpg,glp=glp,rzr=rzr,ezt=ezt,rzt=rzt,nv=nv,snap=snap,
+    out=dict(xr=xr,xc=xc,cpg=cpg,tpg=tpg,glp=glp,rzr=rzr,ezt=ezt,rzt=rzt,nv=nv,snap=snap,
                 rz_csh=rz_csh,gl_csh=gl_csh,rz_tsh=rz_tsh,exp_gl_td=glp*0.38+rzr*0.08,implied=implied,cg=cg,hp=hp,
                 cpg3=cpg3,tpg3=tpg3,glp3=glp3,snap3=snap3,trend_car=trend_car,trend_gl=trend_gl,trend_tgt=trend_tgt)
+    out.update(P.ngs_cols(d, NGS_GM))
+    return out
 
 def stack(f, pos, team, week=None, season=None, team_exp=None):
     xtd=f['xr']+f['xc']; vol=f['cpg']+f['tpg']
@@ -54,6 +62,7 @@ def stack(f, pos, team, week=None, season=None, team_exp=None):
           'rzrpg':f['rzr'],'eztpg':f['ezt'],'rztpg':f['rzt'],'rz_csh':f['rz_csh'],'gl_csh':f['gl_csh'],
           'rz_tsh':f['rz_tsh'],'exp_gl_td':f['exp_gl_td'],'implied':f['implied'],'team_exp':team_exp,'snap':f['snap'],'naive':f['nv'],
           'cg':f['cg'],'cpg3':f['cpg3'],'tpg3':f['tpg3'],'glp3':f['glp3'],'snap3':f['snap3'],'trend_car':f['trend_car'],'trend_gl':f['trend_gl'],'trend_tgt':f['trend_tgt'],
+          **{n:f[n] for n in P.NGS},
           'is_RB':(pos=='RB'),'is_WR':(pos=='WR'),'is_TE':(pos=='TE'),'is_QB':(pos=='QB')}
     return np.column_stack([cols[k] for k in P.FEATS]).astype(float)
 
@@ -65,8 +74,20 @@ carries=c0(tdf['carries']);targets=c0(tdf['targets']);scored=c0(tdf['scored']).a
 skill=np.isin(pos,['RB','WR','TE','QB']); base=skill&((carries+targets)>=1)&((fT['cg']>=1)|fT['hp'])
 train=base&((season<SEASON)|((season==SEASON)&(week<UPCOMING)))
 clf=HistGradientBoostingClassifier(max_depth=3,max_iter=300,learning_rate=0.05,
-    l2_regularization=1.0,min_samples_leaf=60,random_state=0)  # raw: better calibrated for workhorses
+    l2_regularization=1.0,min_samples_leaf=60,random_state=0,early_stopping=False)  # raw: better calibrated for workhorses
 clf.fit(Xtr_all[train],scored[train]); print("trained on",int(train.sum()))
+
+# ---- stage-1 availability model: P(player takes >=1 offensive touch | eligible) ----
+import os
+INJF=[f'data/injuries_{y}.parquet' for y in range(2016,SEASON+1) if os.path.exists(f'data/injuries_{y}.parquet')]
+gdf=P.build_grid(con, list(range(2016,SEASON+1)), INJF)
+g_hp=c0(gdf['pr_g'])>0; g_cg=c0(gdf['c_g']); g_pos=gdf['ppos'].astype(str)
+g_vol=(c0(gdf['c_car'])+c0(gdf['c_tgt']))/np.maximum(g_cg,1e-6)
+X1=P.stage1_matrix(gdf, gsnap); y1=c0(gdf['played']).astype(int)
+g_tr=np.isin(g_pos,['RB','WR','TE','QB'])&((g_cg>=1)|g_hp)
+clf_play=HistGradientBoostingClassifier(max_depth=3,max_iter=300,learning_rate=0.05,
+    l2_regularization=1.0,min_samples_leaf=60,random_state=0,early_stopping=False)
+clf_play.fit(X1[g_tr],y1[g_tr]); print("availability model trained on",int(g_tr.sum()))
 
 # ---- snapshot entering upcoming week ----
 snap_df=con.sql(f"""
@@ -79,7 +100,11 @@ snap_df=con.sql(f"""
     teamcur as (select posteam, sum(tgl) tgl_tr, sum(trz) trz_tr, sum(trt) trt_tr
       from teamrz where season={SEASON} and week<{UPCOMING} group by posteam),
     nm as (select pid, arg_max(pname,season*100+week) nm from pg where season in ({SEASON},{SEASON-1}) group by pid),
-    inj as (select gsis_id pid, any_value(report_status) status from 'data/injuries_{SEASON}.parquet' where week={UPCOMING} group by gsis_id),
+    inj as (select gsis_id pid, any_value(report_status) status, any_value(practice_status) practice from 'data/injuries_{SEASON}.parquet' where week={UPCOMING} group by gsis_id),
+    curngs as (select pid, avg(sep) n_sep,avg(yacoe) n_yacoe,avg(cush) n_cush,avg(catchp) n_catchp,
+                 avg(eff) n_eff,avg(ryoe) n_ryoe,avg(box8) n_box8,avg(rpoe) n_rpoe
+               from ngm where season={SEASON} and week<{UPCOMING} group by pid),
+    priorngs as (select * from ngs_prior where season={SEASON}),
     veg as (with g as (select home_team,away_team,total_line,spread_line from 'data/games.csv'
               where season={SEASON} and week={UPCOMING})
             select home_team team, total_line/2.0+spread_line/2.0 implied from g
@@ -90,7 +115,9 @@ snap_df=con.sql(f"""
     coalesce(c_scr,0) c_scr,coalesce(c_g,0) c_g,a_snap,
     coalesce(cur3.c_car_l3,0) c_car_l3,coalesce(cur3.c_tgt_l3,0) c_tgt_l3,coalesce(cur3.c_gl_l3,0) c_gl_l3,coalesce(cur3.c_g_l3,0) c_g_l3,cur3.a_snap_l3,
     pr.pr_rush,pr.pr_rec,pr.pr_car,pr.pr_tgt,pr.pr_gl,pr.pr_rzr,pr.pr_ezt,pr.pr_rzt,pr.pr_scr,pr.pr_snap,pr.pr_g,
-    lt.posteam, tc.tgl_tr, tc.trz_tr, tc.trt_tr, veg.implied, inj.status
+    lt.posteam, tc.tgl_tr, tc.trz_tr, tc.trt_tr, veg.implied, inj.status, inj.practice,
+    cn.n_sep,cn.n_yacoe,cn.n_cush,cn.n_catchp,cn.n_eff,cn.n_ryoe,cn.n_box8,cn.n_rpoe,
+    pn.p_sep,pn.p_yacoe,pn.p_cush,pn.p_catchp,pn.p_eff,pn.p_ryoe,pn.p_box8,pn.p_rpoe
   from cur full outer join (select * from prior where season={SEASON}) pr on cur.pid=pr.pid
   left join cur3 on coalesce(cur.pid,pr.pid)=cur3.pid
   left join lastteam lt on coalesce(cur.pid,pr.pid)=lt.pid
@@ -99,6 +126,8 @@ snap_df=con.sql(f"""
   left join nm on coalesce(cur.pid,pr.pid)=nm.pid
   left join pos po on coalesce(cur.pid,pr.pid)=po.pid
   left join inj on coalesce(cur.pid,pr.pid)=inj.pid
+  left join curngs cn on coalesce(cur.pid,pr.pid)=cn.pid
+  left join priorngs pn on coalesce(cur.pid,pr.pid)=pn.pid
 """).fetchnumpy()
 
 fS=feat_rows(snap_df)
@@ -154,7 +183,13 @@ for tm,idxs in by_team.items():
 trz=c0(snap_df['trz_tr']);tgl=c0(snap_df['tgl_tr']);trt=c0(snap_df['trt_tr'])
 fS['xr']=xr;fS['xc']=xc;fS['glp']=glp;fS['rzr']=rzr;fS['cpg']=cpg;fS['ezt']=ezt;fS['rzt']=rzt;fS['tpg']=tpg
 Xs=stack(fS,spos,steam,team_exp=steam_exp)
-ps=clf.predict_proba(Xs)[:,1]
+p_conv=clf.predict_proba(Xs)[:,1]   # P(TD | player plays)
+# stage-1 P(plays) for the snapshot, then combine into a true pregame probability
+s1={'pr_g':snap_df['pr_g'],'c_g':snap_df['c_g'],'a_snap':snap_df['a_snap'],'a_snap_l3':snap_df['a_snap_l3'],
+    'p_g_l3':snap_df['c_g_l3'],'pr_car':snap_df['pr_car'],'pr_tgt':snap_df['pr_tgt'],
+    'c_car':snap_df['c_car'],'c_tgt':snap_df['c_tgt'],'status':snap_df['status'],'practice':snap_df['practice'],'ppos':snap_df['ppos']}
+p_play=clf_play.predict_proba(P.stage1_matrix(s1,gsnap))[:,1]
+ps=p_conv*p_play                     # anytime-TD chance = P(plays) x P(TD | plays)
 
 skill_s=np.isin(spos,['RB','WR','TE','QB']); vol_ok=(cpg+tpg)>=3.0
 rows=[]
@@ -168,6 +203,7 @@ for i in range(len(spid)):
         "implied":round(float(simplied[i]),1),"snap":round(float(fS['snap'][i])*100,0),
         "rztsh":round(float(fS['rz_tsh'][i]),2),
         "status":sstat[i] if sstat[i] in ('Questionable',) else "",
+        "avail":round(float(p_play[i]),3),"conv":round(float(p_conv[i]),4),
         "thin": bool(not fS['hp'][i]),"chance":round(float(ps[i]),4)})
 rows.sort(key=lambda x:-x['chance']); rows=rows[:90]
 bt=json.load(open('out/backtest_v3.json'))
