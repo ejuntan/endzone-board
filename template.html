@@ -161,7 +161,8 @@
           <th class="l sortable" data-sort="chance">Player <span class="arr">&#9662;</span></th>
           <th class="sortable" data-sort="cpg">Car/g <span class="arr">&#9662;</span></th>
           <th class="sortable" data-sort="tpg">Tgt/g <span class="arr">&#9662;</span></th>
-          <th class="sortable" data-sort="xtd">Exp. TDs <span class="arr">&#9662;</span></th>
+          <th class="sortable" data-sort="xrush">Rush TD <span class="arr">&#9662;</span></th>
+          <th class="sortable" data-sort="xrec">Rec TD <span class="arr">&#9662;</span></th>
           <th class="sortable" data-sort="chance" aria-sort="descending">TD chance <span class="arr">&#9662;</span></th>
           <th class="l">Tier</th>
         </tr></thead>
@@ -211,7 +212,8 @@ function render(){
         <div class="pmeta">${r.team} vs ${r.opp} · <span class="posbadge">${r.pos}</span></div></span></td>
       <td class="mono">${r.cpg.toFixed(1)}</td>
       <td class="mono">${r.tpg.toFixed(1)}</td>
-      <td class="mono">${r.xtd.toFixed(2)}</td>
+      <td class="mono">${r.xrush.toFixed(2)}</td>
+      <td class="mono">${r.xrec.toFixed(2)}</td>
       <td><span class="prob" style="color:${tierColor(r.chance)}">${(r.chance*100).toFixed(0)}%</span>
         <div class="bar"><i style="width:${Math.min(100,r.chance*100).toFixed(0)}%;background:${tierColor(r.chance)}"></i></div></td>
       <td class="l"><span class="tier ${tier.k}">${tier.t}</span></td>`;
