@@ -10,8 +10,8 @@ for yr in $(seq 2016 "$CUR"); do
   curl -sL -m 240 -o "data/pbp_${yr}.parquet"      "$BASE/pbp/play_by_play_${yr}.parquet" || true
   curl -sL -m 120 -o "data/roster_${yr}.parquet"   "$BASE/rosters/roster_${yr}.parquet" || true
   curl -sL -m 120 -o "data/snaps_${yr}.parquet"    "$BASE/snap_counts/snap_counts_${yr}.parquet" || true
+  curl -sL -m 120 -o "data/injuries_${yr}.parquet" "$BASE/injuries/injuries_${yr}.parquet" || true
 done
-curl -sL -m 120 -o "data/injuries_${CUR}.parquet"  "$BASE/injuries/injuries_${CUR}.parquet" || true
 curl -sL -m 60  -o data/games.csv "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
 curl -sL -m 120 -o data/players.parquet "$BASE/players/players.parquet"
 # Next Gen Stats (combined all-seasons files; used for trailing form features)
