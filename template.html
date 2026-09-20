@@ -84,7 +84,7 @@
   thead th .arr{opacity:.5;font-size:9px}
   thead th[aria-sort] .arr{opacity:1;color:var(--accent)}
   tbody td{padding:14px 16px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line2);font-size:14.5px}
-  tbody tr.row{transition:background .12s}
+  tbody tr.row{cursor:pointer;transition:background .12s}
   tbody tr.row:hover{background:var(--panel2)}
   tbody tr:last-child td{border-bottom:0}
   .player{text-align:left;display:flex;align-items:center;gap:13px}
@@ -102,7 +102,18 @@
   .tier.live{background:var(--t-live-bg);color:var(--t-live)}
   .tier.long{background:var(--t-long-bg);color:var(--t-long)}
   .empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
-  @media (max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}.headright{order:-1}}
+  .chev{color:var(--faint);transition:transform .18s;display:inline-block}
+  tr.open .chev{transform:rotate(90deg);color:var(--accent)}
+  tr.detail td{padding:0;border-bottom:1px solid var(--line2)}
+  .panel-in{padding:16px 18px 20px 48px;background:var(--panel2);display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .brk h4{margin:0 0 11px;font-family:"Oswald",sans-serif;font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .oppgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+  .oppgrid .row2{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line);gap:12px}
+  .oppgrid .row2 span:first-child{color:var(--muted)}
+  .oppgrid .row2 b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+  .formula{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 13px;line-height:1.85}
+  .formula b{color:var(--accent)}
+  @media (max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}.headright{order:-1}.panel-in{grid-template-columns:1fr;padding-left:18px}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
   .badge{font-family:"IBM Plex Mono",monospace;font-size:9.5px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:6px;letter-spacing:.3px;vertical-align:middle}
@@ -189,7 +200,7 @@ function tierOf(pr){ if(pr>=0.45)return{k:'elite',t:'Elite'}; if(pr>=0.33)return
 function tierColor(pr){const c=tierOf(pr).k;
   return c==='elite'?'var(--t-elite)':c==='strong'?'var(--t-strong)':c==='live'?'var(--t-live)':'var(--t-long)';}
 
-const state={pos:'ALL',q:'',sort:'chance',dir:-1,chmin:0};
+const state={pos:'ALL',q:'',sort:'chance',dir:-1,chmin:0,open:new Set()};
 const tbody=document.getElementById('tbody'), emptyEl=document.getElementById('empty');
 
 function view(){
@@ -205,9 +216,9 @@ function render(){
   const list=view(); tbody.innerHTML=''; emptyEl.hidden=list.length>0;
   list.forEach((r,i)=>{
     const tier=tierOf(r.chance);
-    const tr=document.createElement('tr'); tr.className='row';
+    const tr=document.createElement('tr'); tr.className='row'+(state.open.has(r.name)?' open':''); tr.dataset.name=r.name;
     tr.innerHTML=`
-      <td class="player"><span class="rk">${i+1}</span>
+      <td class="player"><span class="chev">&#9656;</span><span class="rk">${i+1}</span>
         <span><div class="pname">${r.name}${r.status==='Questionable'?' <span class="badge q">Q</span>':''}${r.thin?' <span class="badge r">1st-yr</span>':''}</div>
         <div class="pmeta">${r.team} vs ${r.opp} · <span class="posbadge">${r.pos}</span></div></span></td>
       <td class="mono">${r.cpg.toFixed(1)}</td>
@@ -218,6 +229,31 @@ function render(){
         <div class="bar"><i style="width:${Math.min(100,r.chance*100).toFixed(0)}%;background:${tierColor(r.chance)}"></i></div></td>
       <td class="l"><span class="tier ${tier.k}">${tier.t}</span></td>`;
     tbody.appendChild(tr);
+    if(state.open.has(r.name)){
+      const d=document.createElement('tr'); d.className='detail';
+      d.innerHTML=`<td colspan="7"><div class="panel-in">
+        <div class="brk"><h4>Opportunity profile</h4>
+          <div class="oppgrid">
+            <div class="row2"><span>Matchup</span><b>${r.team} vs ${r.opp}</b></div>
+            <div class="row2"><span>Position</span><b>${r.pos}</b></div>
+            <div class="row2"><span>Carries/g</span><b>${r.cpg.toFixed(1)}</b></div>
+            <div class="row2"><span>Targets/g</span><b>${r.tpg.toFixed(1)}</b></div>
+            <div class="row2"><span>Snap share</span><b>${(r.snap||0).toFixed(0)}%</b></div>
+            <div class="row2"><span>Vegas implied total</span><b>${(r.implied||0).toFixed(1)}</b></div>
+            <div class="row2"><span>RZ carry share</span><b>${Math.round((r.rzcsh||0)*100)}%</b></div>
+            <div class="row2"><span>Goal-line carry share</span><b>${Math.round((r.glcsh||0)*100)}%</b></div>
+            <div class="row2"><span>RZ target share</span><b>${Math.round((r.rztsh||0)*100)}%</b></div>
+            <div class="row2"><span>Rush / rec split</span><b>${Math.round(100*r.xrush/Math.max(1e-6,r.xtd))}% / ${Math.round(100*r.xrec/Math.max(1e-6,r.xtd))}%</b></div>
+            <div class="row2"><span>Injury status</span><b>${r.status||'—'}</b></div>
+            <div class="row2"><span>Availability P(plays)</span><b>${r.avail!=null?(r.avail*100).toFixed(0)+'%':'—'}</b></div>
+          </div></div>
+        <div class="brk"><h4>How the chance is built</h4>
+          <div class="formula">Conversion P(TD | plays) = <b>${((r.conv!=null?r.conv:r.chance)*100).toFixed(1)}%</b><br>
+            Availability P(plays) = <b>${r.avail!=null?(r.avail*100).toFixed(0)+'%':'—'}</b><br>
+            Pregame chance = conversion &times; availability = <b>${(r.chance*100).toFixed(1)}%</b><br>
+            Tier = <b>${tier.t}</b></div></div></div></td>`;
+      tbody.appendChild(d);
+    }
   });
   summary();
 }
@@ -228,6 +264,9 @@ function summary(){
   document.getElementById('t-elite').textContent=PLAYERS.filter(r=>r.chance>=0.45).length;
   {const _e=META.bt.tiers.find(t=>t[0].indexOf('Elite')===0);document.getElementById('t-ll').innerHTML=(_e?Math.round(_e[2]*100):0)+'%<small>backtested</small>';}
 }
+tbody.addEventListener('click',e=>{const tr=e.target.closest('tr.row');if(!tr)return;
+  const name=tr.dataset.name;
+  if(state.open.has(name))state.open.delete(name);else state.open.add(name);render();});
 document.getElementById('q').addEventListener('input',e=>{state.q=e.target.value.toLowerCase().trim();render();});
 document.getElementById('posseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   state.pos=b.dataset.pos;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));render();});
